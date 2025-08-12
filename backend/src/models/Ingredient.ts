@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 export interface IIngredient extends mongoose.Document {
+  userId: mongoose.Types.ObjectId;  // 添加用户ID关联
   name: string;
   category: string;
   quantity: number;
@@ -16,6 +17,7 @@ export interface IIngredient extends mongoose.Document {
 }
 
 const ingredientSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },  // 用户关联
   name: { type: String, required: true },
   category: { type: String, required: true },
   quantity: { type: Number, required: true },
@@ -31,5 +33,9 @@ const ingredientSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// 添加索引以提高查询性能
+ingredientSchema.index({ userId: 1 });
+ingredientSchema.index({ userId: 1, expiryDate: 1 });
 
 export default mongoose.model<IIngredient>('Ingredient', ingredientSchema); 

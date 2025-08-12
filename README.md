@@ -16,7 +16,16 @@
    - 自动 BMI 计算
    - 数据更新时间追踪
 
-3. 用户界面
+3. 食材管理
+   - 个人食材库存管理
+   - 食材基本信息（名称、分类、数量、单位）
+   - 营养信息记录（热量、蛋白质、碳水、脂肪、纤维）
+   - 过期日期管理和状态提醒
+   - 智能过期状态判断（新鲜/即将过期/已过期）
+   - 完整的增删改查功能
+   - 用户数据隔离保护
+
+4. 用户界面
    - 响应式布局设计
    - 现代化的 Material Design
    - 直观的导航系统
@@ -25,29 +34,29 @@
 
 ## 开发中功能
 
-1. 食材管理
-   - 食材库存记录
-   - 保质期提醒
-   - 库存预警
-   - 使用记录追踪
-
-2. 菜谱系统
+1. 菜谱系统
    - 菜品数据库
    - 基于现有食材的菜品推荐
    - 营养成分分析
    - 烹饪步骤指导
 
-3. 营养追踪
+2. 营养追踪
    - 每日营养摄入记录
    - 营养需求分析
    - 个性化饮食建议
    - 营养摄入趋势分析
 
-4. 家庭协作
+3. 家庭协作
    - 家庭成员管理
    - 角色权限控制
    - 膳食计划共享
    - 购物清单协作
+
+4. 高级食材功能
+   - 保质期自动提醒
+   - 库存预警系统
+   - 食材使用记录追踪
+   - 智能补货建议
 
 ## 待优化方向
 
@@ -179,6 +188,21 @@ npm start
 - MongoDB
 - Mongoose 7.0
 - JWT
+
+## 文档资源
+
+### 开发文档
+- 📚 [数据库管理指南](./docs/数据库管理指南.md) - 详细的数据库操作和管理指南
+- 🔧 [数据库快速参考](./docs/数据库快速参考.md) - 常用命令速查表
+
+### 快速参考
+- **查看用户数据**: `mongo eatracker --eval "db.users.find().pretty()"`
+- **查看食材数据**: `mongo eatracker --eval "db.ingredients.find().pretty()"`
+- **清理测试数据**: `cd backend && node scripts/cleanup-database.js users`
+- **查看数据统计**: `cd backend && node scripts/cleanup-database.js stats`
+- **测试食材API**: `cd backend && npm install axios && node scripts/test-ingredient-api.js`
+- **功能演示**: `cd backend && node scripts/demo-ingredient-features.js`
+- **启动开发服务**: `cd backend && npm run dev` + `cd frontend && npm start`
 
 ## 贡献指南
 
