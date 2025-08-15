@@ -5,6 +5,7 @@ import connectDB from './config/database';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import ingredientRoutes from './routes/ingredient.routes';
+import nutritionRoutes from './routes/nutrition.routes';
 
 // 加载环境变量
 dotenv.config();
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/ingredients', ingredientRoutes);
+app.use('/api/nutrition', nutritionRoutes);
 
 // 基础路由
 app.get('/', (req, res) => {

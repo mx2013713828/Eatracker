@@ -10,18 +10,33 @@ const path = require('path');
 
 // 可用的脚本列表
 const scripts = {
-  'cleanup': {
-    file: 'cleanup-database.js',
-    description: '数据库清理脚本',
-    usage: 'node scripts/run.js cleanup [stats|users|user <name>|all]'
+  'cleanup': { 
+    file: 'cleanup-database.js', 
+    description: '数据库清理脚本', 
+    usage: 'node scripts/run.js cleanup [all|users|ingredients|user <username>]'
   },
-  'test-api': {
+  'test-api': { 
     file: 'test-ingredient-api.js', 
-    description: '食材API测试脚本',
+    description: '食材API测试脚本', 
     usage: 'node scripts/run.js test-api'
   },
-  'demo': {
-    file: 'demo-ingredient-features.js',
+  'test-nutrition': { 
+    file: 'test-nutrition-api.js', 
+    description: '营养API测试脚本', 
+    usage: 'node scripts/run.js test-nutrition'
+  },
+  'test-extended': { 
+    file: 'test-extended-nutrition.js', 
+    description: '扩展营养数据库测试脚本', 
+    usage: 'node scripts/run.js test-extended'
+  },
+  'test-frontend': { 
+    file: 'test-frontend-integration.js', 
+    description: '前端集成测试脚本', 
+    usage: 'node scripts/run.js test-frontend'
+  },
+  'demo': { 
+    file: 'demo-ingredient-features.js', 
     description: '食材功能演示脚本', 
     usage: 'node scripts/run.js demo'
   }

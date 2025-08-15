@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -11,8 +11,16 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  Chip,
+  Box,
+  Autocomplete,
+  Card,
+  CardContent
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { Ingredient, ingredientService } from '../services/ingredientService';
+import { nutritionService, NutritionSearchResult, SupportedFood } from '../services/nutritionService';
 
 interface AddIngredientDialogProps {
   open: boolean;
@@ -71,6 +79,84 @@ const AddIngredientDialog: React.FC<AddIngredientDialogProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 新增营养搜索相关状态
+  const [nutritionSearching, setNutritionSearching] = useState(false);
+  const [nutritionResults, setNutritionResults] = useState<NutritionSearchResult[]>([]);
+  const [supportedFoods, setSupportedFoods] = useState<SupportedFood[]>([]);
+  const [showNutritionSuggestions, setShowNutritionSuggestions] = useState(false);
+  const [selectedNutritionResult, setSelectedNutritionResult] = useState<NutritionSearchResult | null>(null);
+
+  // 加载支持的食材列表
+  useEffect(() => {
+    const loadSupportedFoods = async () => {
+      try {
+        const foods = await nutritionService.getSupportedFoods();
+        setSupportedFoods(foods);
+      } catch (error) {
+        console.error('加载支持食材列表失败:', error);
+      }
+    };
+    
+    if (open) {
+      loadSupportedFoods();
+    }
+  }, [open]);
+
+  // 搜索营养信息
+  const searchNutritionInfo = async (foodName: string) => {
+    if (!foodName.trim()) return;
+    
+    setNutritionSearching(true);
+    setShowNutritionSuggestions(false);
+    
+    try {
+      const results = await nutritionService.searchFoodNutrition(foodName);
+      setNutritionResults(results);
+      if (results.length > 0) {
+        setShowNutritionSuggestions(true);
+      }
+    } catch (error) {
+      console.error('搜索营养信息失败:', error);
+      setError('搜索营养信息失败，请稍后重试');
+    } finally {
+      setNutritionSearching(false);
+    }
+  };
+
+  // 应用营养信息
+  const applyNutritionInfo = (result: NutritionSearchResult) => {
+    setSelectedNutritionResult(result);
+    
+    // 自动填充营养信息
+    setFormData(prev => ({
+      ...prev,
+      name: result.name,
+      category: result.category || prev.category,
+      nutrition: {
+        calories: result.nutrition.calories.toString(),
+        protein: result.nutrition.protein.toString(),
+        carbs: result.nutrition.carbs.toString(),
+        fat: result.nutrition.fat.toString(),
+        fiber: result.nutrition.fiber.toString(),
+      }
+    }));
+    
+    setShowNutritionSuggestions(false);
+    setError('');
+  };
+
+  // 修改名称输入处理
+  const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = event.target.value;
+    setFormData(prev => ({ ...prev, name: newName }));
+    setError('');
+    
+    // 清除之前的选择
+    if (selectedNutritionResult && selectedNutritionResult.name !== newName) {
+      setSelectedNutritionResult(null);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -206,168 +292,280 @@ const AddIngredientDialog: React.FC<AddIngredientDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>添加食材</DialogTitle>
       <form onSubmit={handleSubmit}>
+        <DialogTitle>
+          <Typography variant="h6" component="div">
+            添加食材
+          </Typography>
+        </DialogTitle>
+        
         <DialogContent>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
+          <Box sx={{ mt: 2 }}>
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+            
+            <Grid container spacing={2}>
+              {/* 食材名称 - 增强版 */}
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                  <Autocomplete
+                    freeSolo
+                    options={nutritionService.getFoodNameSuggestions(formData.name, supportedFoods)}
+                    value={formData.name}
+                    onInputChange={(event, newValue) => {
+                      setFormData(prev => ({ ...prev, name: newValue || '' }));
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="食材名称"
+                        required
+                        fullWidth
+                        placeholder="请输入食材名称，如：苹果、鸡胸肉"
+                        onChange={handleNameChange}
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: selectedNutritionResult && (
+                            <Chip 
+                              size="small" 
+                              label={`${selectedNutritionResult.nutritionFormatted.confidence} 可信度`}
+                              color="success"
+                              sx={{ ml: 1 }}
+                            />
+                          )
+                        }}
+                      />
+                    )}
+                    sx={{ flexGrow: 1 }}
+                  />
+                  
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => searchNutritionInfo(formData.name)}
+                    disabled={!formData.name.trim() || nutritionSearching}
+                    startIcon={nutritionSearching ? <CircularProgress size={16} /> : <SearchIcon />}
+                    sx={{ minWidth: 120 }}
+                  >
+                    {nutritionSearching ? '搜索中' : '搜索营养'}
+                  </Button>
+                </Box>
+                
+                {/* 营养信息搜索结果 */}
+                {showNutritionSuggestions && nutritionResults.length > 0 && (
+                  <Card sx={{ mt: 2, border: 1, borderColor: 'primary.main' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+                        <AutoFixHighIcon sx={{ mr: 1, fontSize: 18 }} />
+                        找到 {nutritionResults.length} 个营养信息建议
+                      </Typography>
+                      
+                      {nutritionResults.map((result, index) => (
+                        <Card 
+                          key={result.id} 
+                          variant="outlined" 
+                          sx={{ 
+                            mt: 1, 
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'action.hover' },
+                            border: selectedNutritionResult?.id === result.id ? 2 : 1,
+                            borderColor: selectedNutritionResult?.id === result.id ? 'primary.main' : 'divider'
+                          }}
+                          onClick={() => applyNutritionInfo(result)}
+                        >
+                          <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <Box>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {result.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {result.description}
+                                </Typography>
+                              </Box>
+                              <Chip 
+                                size="small" 
+                                label={result.source === 'local' ? '本地数据' : result.source === 'usda' ? 'USDA' : '智能匹配'} 
+                                color={result.source === 'local' ? 'success' : result.source === 'usda' ? 'info' : 'warning'}
+                              />
+                            </Box>
+                            
+                            <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                              <Chip size="small" label={result.nutritionFormatted.calories} />
+                              <Chip size="small" label={`蛋白质 ${result.nutritionFormatted.protein}`} />
+                              <Chip size="small" label={`碳水 ${result.nutritionFormatted.carbs}`} />
+                              <Chip size="small" label={`脂肪 ${result.nutritionFormatted.fat}`} />
+                              <Chip size="small" label={`纤维 ${result.nutritionFormatted.fiber}`} />
+                            </Box>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      
+                      <Button 
+                        type="button"
+                        size="small" 
+                        onClick={() => setShowNutritionSuggestions(false)}
+                        sx={{ mt: 1 }}
+                      >
+                        关闭建议
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </Grid>
+              
+              {/* 其他现有字段... */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="分类"
+                  name="category"
+                  value={formData.category}
+                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  select
+                  required
+                  fullWidth
+                >
+                  {categories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
 
-          <Grid container spacing={2}>
-            {/* 基本信息 */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                基本信息
-              </Typography>
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="数量"
+                  name="quantity"
+                  type="number"
+                  value={formData.quantity}
+                  onChange={(e) => handleInputChange('quantity', e.target.value)}
+                  required
+                  fullWidth
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="食材名称"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                required
-                disabled={loading}
-              />
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="单位"
+                  name="unit"
+                  value={formData.unit}
+                  onChange={(e) => handleInputChange('unit', e.target.value)}
+                  select
+                  required
+                  fullWidth
+                >
+                  {units.map((unit) => (
+                    <MenuItem key={unit} value={unit}>
+                      {unit}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="分类"
-                value={formData.category}
-                onChange={(e) => handleInputChange('category', e.target.value)}
-                required
-                disabled={loading}
-              >
-                {categories.map((category) => (
-                  <MenuItem key={category} value={category}>
-                    {category}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="过期日期"
+                  name="expiryDate"
+                  type="date"
+                  value={formData.expiryDate}
+                  onChange={(e) => handleInputChange('expiryDate', e.target.value)}
+                  required
+                  fullWidth
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  inputProps={{
+                    min: getTodayString(),
+                  }}
+                />
+              </Grid>
+              
+              {/* 营养成分标题 - 添加提示 */}
+              <Grid item xs={12}>
+                <Typography variant="h6" gutterBottom sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
+                  营养成分 (每100g)
+                  {selectedNutritionResult && (
+                    <Chip 
+                      size="small" 
+                      label="已自动填充" 
+                      color="success" 
+                      sx={{ ml: 2 }}
+                    />
+                  )}
+                </Typography>
+              </Grid>
+              
+              {/* 营养成分字段保持原样... */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="热量 (kcal/100g)"
+                  value={formData.nutrition.calories}
+                  onChange={(e) => handleNutritionChange('calories', e.target.value)}
+                  disabled={loading}
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="数量"
-                value={formData.quantity}
-                onChange={(e) => handleInputChange('quantity', e.target.value)}
-                required
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="蛋白质 (g/100g)"
+                  value={formData.nutrition.protein}
+                  onChange={(e) => handleNutritionChange('protein', e.target.value)}
+                  disabled={loading}
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                select
-                label="单位"
-                value={formData.unit}
-                onChange={(e) => handleInputChange('unit', e.target.value)}
-                required
-                disabled={loading}
-              >
-                {units.map((unit) => (
-                  <MenuItem key={unit} value={unit}>
-                    {unit}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="碳水化合物 (g/100g)"
+                  value={formData.nutrition.carbs}
+                  onChange={(e) => handleNutritionChange('carbs', e.target.value)}
+                  disabled={loading}
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="date"
-                label="过期日期"
-                value={formData.expiryDate}
-                onChange={(e) => handleInputChange('expiryDate', e.target.value)}
-                required
-                disabled={loading}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: getTodayString() }}
-              />
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="脂肪 (g/100g)"
+                  value={formData.nutrition.fat}
+                  onChange={(e) => handleNutritionChange('fat', e.target.value)}
+                  disabled={loading}
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
 
-            {/* 营养信息 */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                营养信息 (可选)
-              </Typography>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="纤维 (g/100g)"
+                  value={formData.nutrition.fiber}
+                  onChange={(e) => handleNutritionChange('fiber', e.target.value)}
+                  disabled={loading}
+                  inputProps={{ min: 0, step: 0.1 }}
+                />
+              </Grid>
             </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="热量 (kcal/100g)"
-                value={formData.nutrition.calories}
-                onChange={(e) => handleNutritionChange('calories', e.target.value)}
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="蛋白质 (g/100g)"
-                value={formData.nutrition.protein}
-                onChange={(e) => handleNutritionChange('protein', e.target.value)}
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="碳水化合物 (g/100g)"
-                value={formData.nutrition.carbs}
-                onChange={(e) => handleNutritionChange('carbs', e.target.value)}
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="脂肪 (g/100g)"
-                value={formData.nutrition.fat}
-                onChange={(e) => handleNutritionChange('fat', e.target.value)}
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="纤维 (g/100g)"
-                value={formData.nutrition.fiber}
-                onChange={(e) => handleNutritionChange('fiber', e.target.value)}
-                disabled={loading}
-                inputProps={{ min: 0, step: 0.1 }}
-              />
-            </Grid>
-          </Grid>
+          </Box>
         </DialogContent>
-
+        
         <DialogActions>
-          <Button onClick={handleClose} disabled={loading}>
+          <Button type="button" onClick={handleClose} disabled={loading}>
             取消
           </Button>
           <Button
